@@ -1,0 +1,96 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/scope.mjs
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - run: node scripts/check-public.mjs
+      - name: Whitespace
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ -n "$BASE_SHA" ]]; then git diff --check "$BASE_SHA" "$HEAD_SHA"; else git show --format= --check HEAD; fi
+  windows:
+    needs: scope
+    if: needs.scope.outputs.docs_only != 'true'
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          toolchain: stable
+          components: rustfmt
+      - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm run check
+      - run: npm run format:check
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - run: npm test
+      - run: npx playwright install chromium
+      - run: npm run test:ui
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - run: npm run app:build
+      - name: Installed application smoke test
+        shell: pwsh
+        run: ./scripts/smoke-install.ps1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-installer
+          path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: test-diagnostics
+          path: test-results/
+          if-no-files-found: ignore
+  result:
+    name: CI result
+    if: always()
+    needs: [scope, source, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          SOURCE_RESULT: ${{ needs.source.result }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+          DOCS_ONLY: ${{ needs.scope.outputs.docs_only }}
+        run: |
+          test "$SCOPE_RESULT" = success
+          test "$SOURCE_RESULT" = success
+          if [ "$DOCS_ONLY" != true ]; then test "$WINDOWS_RESULT" = success; fi
