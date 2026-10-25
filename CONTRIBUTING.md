@@ -9,3 +9,5 @@ Use temporary directories and simulated bulbs for automated tests. Never commit 
 Configuration changes must preserve stable lamp IDs and pairings. Update the native host, shared parser, example, schema and migration tests together. Never change the app identifier or Matter controller ID as a migration shortcut.
 
 For a release, update the package, lockfile, Cargo and Tauri versions on a PR. Wait for required checks on final source, merge without bypasses, tag the verified merge commit and create a matching GitHub Release. Attach the installer from successful main-commit CI and its SHA-256 file. Mark alpha/beta/RC versions as prereleases. GitHub Releases do not publish npm packages.
+
+GitHub normalizes whitespace in uploaded asset names. Align `SHA256SUMS.txt` with the final public filenames and verify that the downloaded installer bytes still match the tested CI artifact.
