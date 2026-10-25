@@ -16,7 +16,7 @@ The interface is currently in French. Windows x64 is the supported distribution 
 
 ## Install and pair
 
-1. Download `Home Control_0.2.0_x64-setup.exe` and `SHA256SUMS.txt` from [Releases](https://github.com/Lorkydey/HomeControl/releases).
+1. Download `Home.Control_0.2.0_x64-setup.exe` and `SHA256SUMS.txt` from [Releases](https://github.com/Lorkydey/HomeControl/releases).
 2. Install, then open Home Control from the notification area. Windows may hide its icon among the overflow icons. The installer is currently **unsigned**. Node.js is included. WebView2 is downloaded if missing, requiring Internet access ([Tauri documentation](https://v2.tauri.app/distribute/windows-installer/#webview2-installation-options)).
 3. In the app already controlling the bulb, enable **Matter sharing / pairing mode** and generate a fresh temporary code. In Apple Home, use **Turn On Pairing Mode** in the accessory settings.
 4. Click an unpaired bulb icon in Home Control and enter the code. Repeat for other lights.
