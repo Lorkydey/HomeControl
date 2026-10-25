@@ -1,0 +1,47 @@
+{
+  "name": "homecontrol",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "engine:build": "node scripts/build-engine.mjs",
+    "check": "tsc --noEmit && tsc -p engine/tsconfig.json --noEmit",
+    "test": "npm run engine:build && node --import tsx --test engine/*.test.ts",
+    "test:ui": "playwright test",
+    "tauri": "tauri",
+    "app:dev": "npm run engine:build && tauri dev",
+    "app:build": "npm run engine:build && tauri build",
+    "format:check": "prettier --check \"src/**/*.{ts,css}\" \"shared/*.ts\" \"engine/*.ts\" \"engine/tsconfig.json\" \"scripts/*.mjs\" \"tests/*.ts\" \"*.json\" \"*.ts\" \".github/**/*.{mjs,yml}\"",
+    "check:public": "node scripts/check-public.mjs"
+  },
+  "dependencies": {
+    "@matter/main": "0.18.0",
+    "@tauri-apps/api": "^2.11.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@tauri-apps/cli": "^2.11.0",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0"
+  },
+  "description": "A compact Windows tray controller for Matter lights",
+  "license": "MIT",
+  "author": "Lorkydey",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Lorkydey/HomeControl.git"
+  },
+  "homepage": "https://github.com/Lorkydey/HomeControl",
+  "bugs": {
+    "url": "https://github.com/Lorkydey/HomeControl/issues"
+  },
+  "engines": {
+    "node": ">=24.15.0 <25"
+  }
+}
