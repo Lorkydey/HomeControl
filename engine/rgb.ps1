@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $logiReady = $false
+$logiSaved = $false
 $aura = $null
 $auraControl = $false
 $pcDevices = @()
@@ -68,7 +69,7 @@ public static class HomeControlLogi {
     Start-Sleep -Milliseconds 150
     # PERKEY_RGB = 4: leave RGB mice and headsets alone.
     if (-not [HomeControlLogi]::LogiLedSetTargetDevice(4)) { throw 'Clavier RGB indisponible dans G HUB.' }
-    [void][HomeControlLogi]::LogiLedSaveCurrentLighting()
+    $script:logiSaved = [HomeControlLogi]::LogiLedSaveCurrentLighting()
 }
 
 try {
@@ -87,6 +88,9 @@ try {
                 }
                 if ($request.source -eq 'logitech') {
                     Start-Logitech
+                    # Reassert the keyboard-only mask on every command, including
+                    # after a failed initialization or a G HUB reconnection.
+                    if (-not [HomeControlLogi]::LogiLedSetTargetDevice(4)) { throw 'Clavier RGB indisponible dans G HUB.' }
                     if (-not [HomeControlLogi]::LogiLedSetLighting(
                         [int][Math]::Round($rgb[0] * 100 / 255),
                         [int][Math]::Round($rgb[1] * 100 / 255),
@@ -115,7 +119,7 @@ try {
     }
 } finally {
     if ($logiReady) {
-        [void][HomeControlLogi]::LogiLedRestoreLighting()
+        if ($logiSaved -and [HomeControlLogi]::LogiLedSetTargetDevice(4)) { [void][HomeControlLogi]::LogiLedRestoreLighting() }
         [HomeControlLogi]::LogiLedShutdown()
     }
     # Aura releases control when the process exits, restoring the vendor effect.
