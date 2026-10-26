@@ -7,6 +7,7 @@ import { LatestQueue } from "../shared/latest-queue";
 import { defaultConfig, parseConfig, escapeHtml } from "../shared/config";
 
 const paths = {
+  lock: '<rect x="6" y="10" width="12" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/>',
   keyboard:
     '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M5 9h1m3 0h1m3 0h1m3 0h1M5 12h1m3 0h1m3 0h1m3 0h1M6 16h12"/>',
   pc: '<rect x="6" y="2" width="12" height="20" rx="2"/><circle cx="12" cy="9" r="3"/><path d="M9 17h6m-6 2h6"/>',
@@ -32,6 +33,17 @@ const masterIndex = positions.length;
 const roomIcon = (index: number) => config.lights[index].icon;
 const roomMark = (index: number) =>
   index === masterIndex ? "" : svg(roomIcon(index));
+const lockStorageKey = "homecontrol.locked-lights";
+const lockedIds = new Set<string>();
+const lockEpoch = new Map<number, number>();
+try {
+  const saved: unknown = JSON.parse(
+    localStorage.getItem(lockStorageKey) ?? "[]",
+  );
+  if (Array.isArray(saved))
+    for (const id of saved) if (typeof id === "string") lockedIds.add(id);
+} catch {}
+const isLocked = (index: number) => lockedIds.has(config.lights[index]?.id);
 const swatches = [
   ["#ff4848", "Rouge"],
   ["#ffad33", "Orange"],
@@ -131,6 +143,8 @@ interface Draft {
   method: Method;
   params: Record<string, unknown>;
   patch: Patch;
+  global: boolean;
+  lockEpoch: number;
 }
 const pending = new Map<number, Map<Field, Pending>>(),
   queue = new LatestQueue();
@@ -140,13 +154,13 @@ const live = new Map<
 >();
 
 $("#app").innerHTML = `
-<main><h1 class="sr-only">Éclairage</h1><div class="views"><section class="bars" id="home-view" aria-label="Lampes">
+<main><h1 class="sr-only">Éclairage</h1><p id="lock-help" class="sr-only">Double-cliquez pour exclure cette lumière des commandes globales. Répétez pour la réinclure. Au clavier, utilisez Entrée ou Espace.</p><div class="views"><section class="bars" id="home-view" aria-label="Lampes">
 ${[masterIndex, ...physicalIndexes]
   .map((index) => {
     const name = escapeHtml(
       index === masterIndex ? "Toutes les lampes" : positions[index],
     );
-    return `<article class="lamp ${index === masterIndex ? "master-row" : ""}" id="light-${index}"><div class="brightness-shell"><div class="bar-fill" aria-hidden="true"></div><div class="bar-sheen" aria-hidden="true"></div><span class="bar-readout" aria-hidden="true">0 %</span><input class="brightness-bar" id="brightness-${index}" data-brightness="${index}" type="range" min="0" max="100" step="1" value="0" aria-label="Luminosité de ${name}"/><button class="lamp-power" id="power-${index}" data-power="${index}" role="switch" aria-checked="false" aria-label="Allumer ${name}"><span class="power-state state-off" aria-hidden="true">${svg("bulb")}</span><span class="power-state state-on" aria-hidden="true">${svg("bulb")}</span></button></div><span class="room-icon" ${index === masterIndex ? "hidden" : ""} role="img" aria-label="${name}">${roomMark(index)}<span class="lamp-name ${index === masterIndex ? "sr-only" : ""}">${name}</span></span><button class="color-open" id="color-open-${index}" data-edit="${index}" aria-label="Couleur de ${name}" aria-expanded="false" aria-controls="editor"><span class="color-chip" aria-hidden="true"></span></button></article>`;
+    return `<article class="lamp ${index === masterIndex ? "master-row" : ""}" id="light-${index}"><div class="brightness-shell"><div class="bar-fill" aria-hidden="true"></div><div class="bar-sheen" aria-hidden="true"></div><span class="bar-readout" aria-hidden="true">0 %</span><input class="brightness-bar" id="brightness-${index}" data-brightness="${index}" type="range" min="0" max="100" step="1" value="0" aria-label="Luminosité de ${name}"/><button class="lamp-power" id="power-${index}" data-power="${index}" role="switch" aria-checked="false" aria-label="Allumer ${name}"><span class="power-state state-off" aria-hidden="true">${svg("bulb")}</span><span class="power-state state-on" aria-hidden="true">${svg("bulb")}</span></button></div><button type="button" class="room-icon" ${index === masterIndex ? "hidden" : `data-lock="${index}" aria-pressed="false" aria-describedby="lock-help"`} aria-label="${name}">${roomMark(index)}${index === masterIndex ? "" : `<span class="lock-badge" hidden aria-hidden="true">${svg("lock")}</span>`}<span class="lamp-name ${index === masterIndex ? "sr-only" : ""}">${name}</span></button><button class="color-open" id="color-open-${index}" data-edit="${index}" aria-label="Couleur de ${name}" aria-expanded="false" aria-controls="editor"><span class="color-chip" aria-hidden="true"></span></button></article>`;
   })
   .join("")}
 </section>
@@ -242,7 +256,11 @@ const lampColor = (light: Light) =>
     : "#eeeeee";
 function targets(index: number) {
   if (index < 0 || index > masterIndex) return [];
-  return (index === masterIndex ? lights : [lights[index]]).filter(canControl);
+  return (
+    index === masterIndex
+      ? lights.filter((light) => !isLocked(light.index))
+      : [lights[index]]
+  ).filter(canControl);
 }
 function group(): Light {
   const members = targets(masterIndex),
@@ -252,7 +270,7 @@ function group(): Light {
     ...first,
     index: masterIndex,
     name: "Toutes les lampes",
-    paired: lights.some((light) => light.paired),
+    paired: members.some((light) => light.paired),
     online: members.length > 0,
     available: members.length > 0,
     on: members.length > 0 && members.every((light) => light.on),
@@ -340,12 +358,18 @@ function update(next?: Light[]) {
       "aria-busy",
       String(
         light.index === masterIndex
-          ? lights.some((l) => pending.get(l.index)?.size)
+          ? members.some((l) => pending.get(l.index)?.size)
           : !!pending.get(light.index)?.size,
       ),
     );
     c.name.textContent = light.name;
     c.identity.setAttribute("aria-label", light.name);
+    if (light.index !== masterIndex) {
+      const locked = isLocked(light.index);
+      c.identity.setAttribute("aria-pressed", String(locked));
+      c.card.classList.toggle("is-locked", locked);
+      c.identity.querySelector<HTMLElement>(".lock-badge")!.hidden = !locked;
+    }
     c.input.disabled = !available || !light.dimmable;
     if (document.activeElement !== c.input) c.input.value = String(level);
     c.input.setAttribute(
@@ -455,6 +479,7 @@ function draft(
   index: number,
   params: Record<string, unknown>,
   patch: Patch,
+  global = false,
 ): Draft {
   const job = {
       token: ++sequence,
@@ -462,6 +487,8 @@ function draft(
       method,
       params: { ...params, index },
       patch,
+      global,
+      lockEpoch: lockEpoch.get(index) ?? 0,
     },
     entries = pending.get(index) ?? new Map<Field, Pending>();
   pending.set(index, entries);
@@ -474,12 +501,23 @@ function draft(
 }
 async function dispatch(job: Draft): Promise<boolean> {
   try {
-    await queue.run(job.index, job.method, () =>
-      request(job.method, job.params),
-    );
+    const sent = await queue.run(job.index, job.method, async () => {
+      if (
+        job.global &&
+        (isLocked(job.index) ||
+          job.lockEpoch !== (lockEpoch.get(job.index) ?? 0))
+      )
+        return false;
+      await request(job.method, job.params);
+      return true;
+    });
     for (const field of Object.keys(job.patch) as Field[]) {
       const entry = pending.get(job.index)?.get(field);
       if (entry?.token !== job.token) continue;
+      if (!sent) {
+        pending.get(job.index)!.delete(field);
+        continue;
+      }
       entry.acked = true;
       entry.timer = setTimeout(() => {
         if (pending.get(job.index)?.get(field) === entry) {
@@ -515,10 +553,11 @@ function control(
   index: number,
   params: Record<string, unknown>,
   patch: Patch,
+  global = false,
 ) {
   flush(index);
   message("");
-  return dispatch(draft(method, index, params, patch));
+  return dispatch(draft(method, index, params, patch, global));
 }
 function stream(
   method: Method,
@@ -526,8 +565,9 @@ function stream(
   params: Record<string, unknown>,
   patch: Patch,
   final = false,
+  global = false,
 ) {
-  const job = draft(method, index, params, patch),
+  const job = draft(method, index, params, patch, global),
     key = `${index}:${method}`,
     existing = live.get(key);
   if (existing) {
@@ -574,8 +614,10 @@ function sendColor(
   };
   for (const light of targets(index).filter((light) => light.color)) {
     const patch = colorPatch(hue, saturation, brightness);
-    if (streaming) stream("color", light.index, params, patch, final);
-    else void control("color", light.index, params, patch);
+    if (streaming)
+      stream("color", light.index, params, patch, final, index === masterIndex);
+    else
+      void control("color", light.index, params, patch, index === masterIndex);
   }
 }
 function chooseColor(
@@ -610,10 +652,45 @@ function sendWhite(
     const bounded = Math.max(light.minKelvin, Math.min(light.maxKelvin, value)),
       patch: Patch = { temperature: bounded, colorMode: "white" };
     if (streaming)
-      stream("temperature", light.index, { value: bounded }, patch, final);
-    else void control("temperature", light.index, { value: bounded }, patch);
+      stream(
+        "temperature",
+        light.index,
+        { value: bounded },
+        patch,
+        final,
+        index === masterIndex,
+      );
+    else
+      void control(
+        "temperature",
+        light.index,
+        { value: bounded },
+        patch,
+        index === masterIndex,
+      );
   }
 }
+document
+  .querySelectorAll<HTMLButtonElement>("[data-lock]")
+  .forEach((button) => {
+    const toggle = () => {
+      const index = Number(button.dataset.lock),
+        id = config.lights[index].id;
+      if (lockedIds.has(id)) lockedIds.delete(id);
+      else lockedIds.add(id);
+      lockEpoch.set(index, (lockEpoch.get(index) ?? 0) + 1);
+      try {
+        localStorage.setItem(lockStorageKey, JSON.stringify([...lockedIds]));
+      } catch {}
+      message("");
+      update();
+    };
+    button.addEventListener("dblclick", toggle);
+    // Keyboard and assistive-technology activations have no pointer click count.
+    button.addEventListener("click", (event) => {
+      if (event.detail === 0) toggle();
+    });
+  });
 document.querySelectorAll<HTMLButtonElement>("[data-power]").forEach((button) =>
   button.addEventListener("click", () => {
     const index = Number(button.dataset.power);
@@ -633,8 +710,9 @@ document.querySelectorAll<HTMLButtonElement>("[data-power]").forEach((button) =>
                 light.index,
                 { value: masterBrightness },
                 { brightness: masterBrightness, on: true },
+                true,
               )
-            : control("power", light.index, { on: true }, { on: true }),
+            : control("power", light.index, { on: true }, { on: true }, true),
         ),
       );
       return;
@@ -642,7 +720,9 @@ document.querySelectorAll<HTMLButtonElement>("[data-power]").forEach((button) =>
     void Promise.all(
       members
         .filter((light) => light.on !== on)
-        .map((light) => control("power", light.index, { on }, { on })),
+        .map((light) =>
+          control("power", light.index, { on }, { on }, index === masterIndex),
+        ),
     );
   }),
 );
@@ -654,7 +734,10 @@ document
       bars[index].card.classList.toggle("scrubbing", active);
       for (const [i, bar] of bars.entries())
         if (index === masterIndex || i === index)
-          bar.card.classList.toggle("dragging", active);
+          bar.card.classList.toggle(
+            "dragging",
+            active && (index !== masterIndex || !isLocked(i)),
+          );
     };
     input.addEventListener("pointerdown", () => gesture(true));
     input.addEventListener("pointerup", () => gesture(false));
@@ -690,6 +773,7 @@ document
           { value },
           { brightness: value, on: value > 0 },
           final,
+          index === masterIndex,
         );
     };
     input.addEventListener("input", () => change(false));

@@ -302,6 +302,11 @@ main {
   font-size: 11px;
 }
 .room-icon {
+  position: relative;
+  padding: 0;
+  background: transparent;
+  border-radius: 7px;
+  user-select: none;
   grid-column: 1;
   grid-row: 1;
   width: 40px;
@@ -312,6 +317,26 @@ main {
   align-items: center;
   gap: 2px;
   color: #a5a5a5;
+}
+.room-icon:hover,
+.room-icon[aria-pressed="true"] {
+  color: #eeeeee;
+}
+.lock-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  background: #000000;
+  color: #eeeeee;
+}
+.room-icon .lock-badge svg {
+  width: 12px;
+  height: 12px;
 }
 .room-icon svg {
   width: 18px;

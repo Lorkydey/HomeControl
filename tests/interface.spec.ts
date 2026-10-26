@@ -9,6 +9,9 @@ async function desktopFixture(
 ) {
   await page.addInitScript(
     ({ paired, offline, config }) => {
+      config =
+        JSON.parse(sessionStorage.getItem("fixture.config") ?? "null") ??
+        config;
       const w = window as any;
       const lights = config.lights.map(({ name, source }, index) => ({
         index,
@@ -127,6 +130,166 @@ async function ready(page: Page) {
     "true",
   );
 }
+
+async function setBrightness(page: Page, index: number, value: number) {
+  await page
+    .locator(`#brightness-${index}`)
+    .evaluate((input: HTMLInputElement, value) => {
+      input.value = String(value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }, value);
+}
+
+test("double-click locks only the device icon and global controls exclude it while individual controls remain usable", async ({
+  page,
+}) => {
+  await desktopFixture(page);
+  await ready(page);
+  const icon = page.locator("#light-0 .room-icon");
+  await icon.click();
+  await expect(icon).toHaveAttribute("aria-pressed", "false");
+  await icon.dblclick();
+  await expect(icon).toHaveAttribute("aria-pressed", "true");
+  await expect(icon.locator(".lock-badge")).toBeVisible();
+  expect(await commands(page, "power")).toHaveLength(0);
+  await setBrightness(page, 3, 35);
+  await expect(page.locator("#light-3")).toHaveAttribute("aria-busy", "false");
+  expect(
+    (await commands(page, "brightness")).map((r: any) => r.params.index).sort(),
+  ).toEqual([1, 2]);
+  await expect(page.locator("#brightness-0")).toHaveValue("70");
+  await setBrightness(page, 0, 62);
+  await expect(page.locator("#light-0")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator("#brightness-0")).toHaveValue("62");
+  await page.locator("#power-3").click();
+  await expect(page.locator("#light-3")).toHaveAttribute("aria-busy", "false");
+  expect(
+    (await commands(page, "power")).map((r: any) => r.params.index).sort(),
+  ).toEqual([1, 2]);
+  await expect(page.locator("#power-0")).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await page.locator("#color-open-3").click();
+  await page.locator('[data-swatch="#ff4848"]').click();
+  await expect(page.locator("#light-3")).toHaveAttribute("aria-busy", "false");
+  expect(
+    (await commands(page, "color")).map((r: any) => r.params.index).sort(),
+  ).toEqual([1, 2]);
+  await page.locator('[data-mode="white"]').click();
+  await expect(page.locator("#light-3")).toHaveAttribute("aria-busy", "false");
+  expect(
+    (await commands(page, "temperature"))
+      .map((r: any) => r.params.index)
+      .sort(),
+  ).toEqual([1, 2]);
+  await page.locator("#editor-close").click();
+  await icon.dblclick();
+  await expect(icon).toHaveAttribute("aria-pressed", "false");
+  await setBrightness(page, 3, 80);
+  await expect(page.locator("#brightness-0")).toHaveValue("80");
+});
+
+test("locks persist by stable ID through reload, rename and reordering, including local RGB devices", async ({
+  page,
+}) => {
+  const config = defaultConfig();
+  config.lights.push(
+    { id: "keyboard", name: "Clavier", icon: "keyboard", source: "logitech" },
+    { id: "pc", name: "PC", icon: "pc", source: "aura" },
+  );
+  await desktopFixture(page, true, [], config);
+  await page.setViewportSize({ width: 320, height: 500 });
+  await ready(page);
+  await page.locator("#light-3 .room-icon").dblclick();
+  await page.locator("#light-4 .room-icon").dblclick();
+  await setBrightness(page, 5, 40);
+  await expect(page.locator("#light-5")).toHaveAttribute("aria-busy", "false");
+  expect(
+    (await commands(page, "brightness")).map((r: any) => r.params.index).sort(),
+  ).toEqual([0, 1, 2]);
+  const reordered = structuredClone(config);
+  reordered.lights.reverse();
+  reordered.lights[0].name = "Tour";
+  await page.evaluate(
+    (config) =>
+      sessionStorage.setItem("fixture.config", JSON.stringify(config)),
+    reordered,
+  );
+  await page.reload();
+  await expect(page.locator("#light-0 .room-icon")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.locator("#light-0 .room-icon")).toHaveAccessibleName(
+    "Tour",
+  );
+  await expect(page.locator("#light-1 .room-icon")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.locator("#light-3 .room-icon")).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  await page.screenshot({
+    path: ".preview/locked-lights.png",
+    animations: "disabled",
+    omitBackground: true,
+  });
+});
+
+test("locking all lights disables the global controls; keyboard activation restores an eligible member", async ({
+  page,
+}) => {
+  await desktopFixture(page);
+  await ready(page);
+  for (const index of [0, 1, 2]) {
+    await page.locator(`#light-${index} .room-icon`).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(`#light-${index} .room-icon`)).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.locator(`#brightness-${index}`)).toBeEnabled();
+  }
+  for (const selector of ["#power-3", "#brightness-3", "#color-open-3"])
+    await expect(page.locator(selector)).toBeDisabled();
+  await page.locator("#light-1 .room-icon").focus();
+  await page.keyboard.press("Space");
+  await expect(page.locator("#light-1 .room-icon")).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  await expect(page.locator("#power-3")).toBeEnabled();
+  await setBrightness(page, 3, 55);
+  await expect(page.locator("#light-3")).toHaveAttribute("aria-busy", "false");
+  expect(
+    (await commands(page, "brightness")).map((r: any) => r.params.index),
+  ).toEqual([1]);
+});
+
+test("locking cancels global commands still queued behind a slow device, even if unlocked before they drain", async ({
+  page,
+}) => {
+  await desktopFixture(page);
+  await ready(page);
+  await page.evaluate(() => {
+    (window as any).__delay = 1200;
+  });
+  await setBrightness(page, 3, 20);
+  await setBrightness(page, 3, 85);
+  await page.locator("#light-0 .room-icon").dblclick();
+  await page.locator("#light-0 .room-icon").dblclick();
+  await expect(page.locator("#light-3")).toHaveAttribute("aria-busy", "false");
+  expect(
+    (await commands(page, "brightness"))
+      .filter((r: any) => r.params.index === 0)
+      .map((r: any) => r.params.value),
+  ).toEqual([20]);
+  await expect(page.locator("#brightness-0")).toHaveValue("20");
+});
 
 test("local keyboard and PC LEDs share controls without Matter pairing or white temperature", async ({
   page,
@@ -794,7 +957,7 @@ test("caption sits below each icon and dismissal resets the color page without d
   await ready(page);
   for (const index of [0, 1, 2]) {
     const icon = (await page
-      .locator(`#light-${index} .room-icon svg`)
+      .locator(`#light-${index} .room-icon > svg`)
       .boundingBox())!;
     const name = (await page
       .locator(`#light-${index} .lamp-name`)

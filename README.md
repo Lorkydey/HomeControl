@@ -61,6 +61,8 @@ Right-click the tray icon and choose **Ouvrir la configuration** to open it. Qui
 
 The global bar remembers its own last brightness setting. Changing one light does not lower this setting or change another light. If only some lights are on, the global power button turns the remaining lights on; if all are on, it turns them all off.
 
+Double-click a light's room/device icon on the left to lock it out of global controls; a small padlock marks it. Repeat to unlock. Locked lights still accept individual commands, while global brightness, power, color and white temperature apply only to unlocked lights. Locks are remembered by stable light ID across restarts, renaming and reordering. Focus the icon and press Enter or Space to toggle its lock with the keyboard.
+
 ### Keyboard and PC LEDs (Windows)
 
 Keep your existing Matter entries and append the two local entries shown in [config.rgb.example.json](config.rgb.example.json), then restart. `source` defaults to `matter`. `logitech` controls supported Logitech per-key RGB keyboards through the x64 G HUB LED SDK; `aura` groups physical internal PC devices reported by Aura Sync (motherboard, strips, GPU, RAM, chassis and cooler). Each local source may appear once; the total remains 1–8 entries. The `keyboard` and `pc` icons are also available.
