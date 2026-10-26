@@ -106,3 +106,43 @@ test("invalid and BOM-prefixed files are handled without resetting stored pairin
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("local RGB sources survive rename and reordering without changing Matter pairings", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "homecontrol-rgb-config-"));
+  try {
+    const config = defaultConfig();
+    config.lights.push(
+      { id: "keyboard", name: "Clavier", icon: "keyboard", source: "logitech" },
+      { id: "pc", name: "PC", icon: "pc", source: "aura" },
+    );
+    assert.deepEqual(parseConfig(config), config);
+    await writeJson(join(directory, "config.json"), config);
+    await writeJson(join(directory, "lights.json"), [
+      { id: "light-1", name: "Bedroom", peerId: "existing-bedroom" },
+    ]);
+    const store = await loadSettings(directory);
+    await store.rename(3, "G keyboard");
+    const saved = parseConfig(
+      JSON.parse(await readFile(join(directory, "config.json"), "utf8")),
+    );
+    assert.equal(saved.lights[3].source, "logitech");
+    assert.equal(store.slots[0].peerId, "existing-bedroom");
+    saved.lights.reverse();
+    await writeJson(join(directory, "config.json"), saved);
+    assert.equal(
+      (await loadSettings(directory)).slots[4].peerId,
+      "existing-bedroom",
+    );
+    saved.lights.push({
+      id: "another-pc",
+      name: "Other",
+      icon: "pc",
+      source: "aura",
+    });
+    assert.throws(() => parseConfig(saved), /une fois/);
+    (saved.lights[0] as any).source = "unknown";
+    assert.throws(() => parseConfig(saved), /inconnue/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

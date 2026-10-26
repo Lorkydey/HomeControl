@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "window": { "width": 320, "margin": 8, "hideOnBlur": true },
+  "lights": [
+    { "id": "light-1", "name": "Chambre", "icon": "bed" },
+    { "id": "light-2", "name": "Séjour", "icon": "sofa" },
+    { "id": "light-3", "name": "Cuisine", "icon": "kitchen" },
+    {
+      "id": "keyboard",
+      "name": "Clavier",
+      "icon": "keyboard",
+      "source": "logitech"
+    },
+    { "id": "pc", "name": "PC", "icon": "pc", "source": "aura" }
+  ]
+}

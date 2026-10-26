@@ -32,4 +32,6 @@ Le fichier est créé automatiquement dans `%LOCALAPPDATA%\fr.lorkydey.homecontr
 
 `config.json` contient les préférences d’affichage. En revanche, **`lights.json` et `matter/` sont privés** : ils portent l’association et l’identité du contrôleur. Ne jamais publier le dossier de données ni le joindre à un ticket. Le supprimer obligerait à partager les lampes à nouveau.
 
+Pour les LED locales, ajouter les entrées `source: "logitech"` (clavier RGB touche par touche via G HUB) et `source: "aura"` (LED internes du PC via Aura Sync) de [l’exemple RGB](../config.rgb.example.json), en conservant les lampes et leurs identifiants, puis relancer. Une entrée par source, toujours huit lumières maximum. G HUB et/ou Armoury Crate doivent être installés et actifs. Marche/arrêt, luminosité et couleur uniforme sont disponibles ; l’état initial est inconnu, puis l’app affiche ses dernières commandes. Les effets du fabricant reprennent à la fermeture. Un autre logiciel RGB ou l’Éclairage dynamique Windows peut prendre la priorité. Voir les [détails et limites](../README.md#keyboard-and-pc-leds-windows).
+
 Pour compiler et vérifier le projet, suivre [les instructions de développement](../README.md#develop-and-validate). Projet sous licence MIT ; les dépendances gardent leurs licences.

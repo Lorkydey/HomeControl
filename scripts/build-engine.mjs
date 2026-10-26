@@ -3,6 +3,7 @@ import { mkdir, copyFile, readdir, writeFile, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 await mkdir("engine/dist", { recursive: true });
 await mkdir("src-tauri/resources", { recursive: true });
+await copyFile("engine/rgb.ps1", "engine/dist/rgb.ps1");
 const result = await build({
   entryPoints: ["engine/bridge.ts"],
   outdir: "engine/dist",

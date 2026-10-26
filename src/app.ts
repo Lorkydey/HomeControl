@@ -7,6 +7,9 @@ import { LatestQueue } from "../shared/latest-queue";
 import { defaultConfig, parseConfig, escapeHtml } from "../shared/config";
 
 const paths = {
+  keyboard:
+    '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M5 9h1m3 0h1m3 0h1m3 0h1M5 12h1m3 0h1m3 0h1m3 0h1M6 16h12"/>',
+  pc: '<rect x="6" y="2" width="12" height="20" rx="2"/><circle cx="12" cy="9" r="3"/><path d="M9 17h6m-6 2h6"/>',
   bulb: '<path d="M9 18h6m-5 3h4M8.6 14.5a6 6 0 1 1 6.8 0c-.9.6-1.4 1.3-1.4 2.5h-4c0-1.2-.5-1.9-1.4-2.5Z"/>',
   close: '<path d="m7 7 10 10M17 7 7 17"/>',
   bed: '<path d="M3 17V7m18 10V9M3 14h18M3 10h18v9M3 19v2m18-2v2M6 10V7h5v3m2 0V7h5v3"/>',
