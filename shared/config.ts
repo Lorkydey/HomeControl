@@ -5,12 +5,19 @@ export const lightIcons = [
   "kitchen",
   "desk",
   "sun",
+  "keyboard",
+  "pc",
 ] as const;
 export type LightIcon = (typeof lightIcons)[number];
 export interface AppConfig {
   version: 1;
   window: { width: number; margin: number; hideOnBlur: boolean };
-  lights: { id: string; name: string; icon: LightIcon }[];
+  lights: {
+    id: string;
+    name: string;
+    icon: LightIcon;
+    source?: "matter" | "logitech" | "aura";
+  }[];
 }
 export function defaultConfig(): AppConfig {
   return {
@@ -72,9 +79,22 @@ export function parseConfig(value: unknown): AppConfig {
   )
     throw new Error("Configurez entre une et huit lampes.");
   const ids = new Set<string>();
+  const localSources = new Set<string>();
   const lights = source.lights.map((value) => {
     const light = object(value);
-    keys(light, ["id", "name", "icon"]);
+    keys(light, ["id", "name", "icon", "source"]);
+    if (
+      light.source !== undefined &&
+      !["matter", "logitech", "aura"].includes(String(light.source))
+    )
+      throw new Error("Source de lumière inconnue.");
+    if (light.source === "logitech" || light.source === "aura") {
+      if (localSources.has(light.source))
+        throw new Error(
+          "Chaque source RGB locale ne peut apparaître qu’une fois.",
+        );
+      localSources.add(light.source);
+    }
     if (
       typeof light.id !== "string" ||
       !/^[a-z][a-z0-9-]{0,31}$/.test(light.id) ||
@@ -90,6 +110,11 @@ export function parseConfig(value: unknown): AppConfig {
       id: light.id,
       name: validName(light.name),
       icon: light.icon as LightIcon,
+      ...(light.source === undefined
+        ? {}
+        : {
+            source: light.source as "matter" | "logitech" | "aura",
+          }),
     };
   });
   return {

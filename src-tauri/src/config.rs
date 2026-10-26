@@ -21,6 +21,15 @@ pub struct LightConfig {
     pub id: String,
     pub name: String,
     pub icon: LightIcon,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<LightSource>,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum LightSource {
+    Matter,
+    Logitech,
+    Aura,
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -31,6 +40,8 @@ pub enum LightIcon {
     Kitchen,
     Desk,
     Sun,
+    Keyboard,
+    Pc,
 }
 pub struct Settings {
     pub config: AppConfig,
@@ -57,7 +68,13 @@ pub fn parse(source: &str) -> Result<AppConfig, String> {
         return Err("Configurez entre une et huit lampes.".into());
     }
     let mut ids = std::collections::HashSet::new();
+    let mut local_sources = std::collections::HashSet::new();
     for light in &mut config.lights {
+        if let Some(source @ (LightSource::Logitech | LightSource::Aura)) = &light.source {
+            if !local_sources.insert(source.clone()) {
+                return Err("Chaque source RGB locale ne peut apparaître qu’une fois.".into());
+            }
+        }
         if light.id.is_empty()
             || light.id.len() > 32
             || !light.id.starts_with(|c: char| c.is_ascii_lowercase())
@@ -148,5 +165,29 @@ mod tests {
         assert!(parse(&source.replace("hideOnBlur", "hideOnBlurr")).is_err());
         assert!(parse(&source.replace("bed", "unknown")).is_err());
         assert!(parse(&format!("\u{feff}{source}")).is_ok());
+    }
+    #[test]
+    fn local_rgb_sources_are_validated_and_preserved() {
+        let mut value: serde_json::Value =
+            serde_json::from_str(include_str!("../../config.example.json")).unwrap();
+        value["lights"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+                "id": "keyboard", "name": "Clavier", "icon": "keyboard", "source": "logitech"
+            }));
+        value["lights"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+                "id": "pc", "name": "PC", "icon": "pc", "source": "aura"
+            }));
+        let parsed = parse(&value.to_string()).unwrap();
+        assert_eq!(parsed.lights[3].source, Some(LightSource::Logitech));
+        assert_eq!(parsed.lights[4].source, Some(LightSource::Aura));
+        value["lights"][3]["source"] = serde_json::json!("aura");
+        assert!(parse(&value.to_string()).is_err());
+        value["lights"][3]["source"] = serde_json::json!("unknown");
+        assert!(parse(&value.to_string()).is_err());
     }
 }

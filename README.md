@@ -11,6 +11,7 @@ A small, deep-black Windows tray app for Matter lights. Built with Rust, Tauri a
 - Local Matter control, persistent connections and independent command queues.
 - A compact bottom-right popover with polished color controls and interruptible motion. Reduced motion is respected.
 - Configure **1 to 8 lights**, names/icons, panel width and outside-click behavior in JSON.
+- Control local Logitech keyboard and ASUS Aura PC lighting alongside Matter bulbs, using the installed vendor software.
 
 The interface is currently in French. Windows x64 is the supported distribution target; macOS, Linux and Windows ARM installers are not provided.
 
@@ -59,6 +60,14 @@ Right-click the tray icon and choose **Ouvrir la configuration** to open it. Qui
 **Keep an existing light's `id` unchanged after pairing.** Reordering entries or changing names/icons is supported. Removing an entry hides it but preserves its private pairing; restoring the same `id` brings it back. Renaming through the tray menu also updates this configuration. Existing pre-config installations migrate automatically without pairing again.
 
 The global bar remembers its own last brightness setting. Changing one light does not lower this setting or change another light. If only some lights are on, the global power button turns the remaining lights on; if all are on, it turns them all off.
+
+### Keyboard and PC LEDs (Windows)
+
+Keep your existing Matter entries and append the two local entries shown in [config.rgb.example.json](config.rgb.example.json), then restart. `source` defaults to `matter`. `logitech` controls supported Logitech per-key RGB keyboards through the x64 G HUB LED SDK; `aura` groups physical internal PC devices reported by Aura Sync (motherboard, strips, GPU, RAM, chassis and cooler). Each local source may appear once; the total remains 1–8 entries. The `keyboard` and `pc` icons are also available.
+
+G HUB and/or Armoury Crate with Aura Sync must already be installed and running. Detection leaves lighting unchanged; control is acquired on the first command. Local LEDs support power, brightness and a uniform RGB color, including the global controls. Temperature and vendor animations are not supported. Their displayed state records commands from Home Control, since these SDKs do not provide reliable live state feedback. Initial power/brightness are unknown. Vendor lighting resumes when Home Control quits; reconnecting hardware may require restarting the app. Other RGB applications or Windows Dynamic Lighting can compete for control.
+
+The helper runs hidden over private pipes and loads the installed SDKs. No vendor DLL, driver, network listener or service change is installed. Physical validation used a Logitech G515 LIGHTSPEED TKL and ASUS PRIME B550-PLUS Aura controller; SDK acknowledgments do not guarantee every connected strip or keyboard visibly responds. SDK references: [Logitech LED wrapper](https://github.com/Logitech/logiPy/blob/master/logipy/logi_led.py), [ASUS Aura SDK](https://www.asus.com/microsite/aurareadydevportal/interface_aura_service_lib_1_1_i_aura_sdk.html).
 
 ## Privacy and troubleshooting
 

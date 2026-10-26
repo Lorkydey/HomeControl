@@ -111,6 +111,7 @@ impl Engine {
             "color",
             "rename",
             "discover",
+            "detect-rgb",
         ]
         .contains(&method.as_str())
         {

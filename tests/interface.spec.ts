@@ -10,10 +10,10 @@ async function desktopFixture(
   await page.addInitScript(
     ({ paired, offline, config }) => {
       const w = window as any;
-      const lights = config.lights.map(({ name }, index) => ({
+      const lights = config.lights.map(({ name, source }, index) => ({
         index,
         name,
-        paired,
+        paired: source && source !== "matter" ? true : paired,
         online: paired && !offline.includes(index),
         available: false,
         connecting: false,
@@ -21,11 +21,12 @@ async function desktopFixture(
         brightness: [70, 45, 25][index],
         temperature: 3000,
         dimmable: true,
-        tunable: true,
+        tunable: !source || source === "matter",
         minKelvin: 2200,
         maxKelvin: 6500,
         color: true,
-        colorMode: index === 1 ? "color" : "white",
+        colorMode:
+          index === 1 || (source && source !== "matter") ? "color" : "white",
         hue: 210,
         saturation: 75,
         hex: "#409fff",
@@ -126,6 +127,42 @@ async function ready(page: Page) {
     "true",
   );
 }
+
+test("local keyboard and PC LEDs share controls without Matter pairing or white temperature", async ({
+  page,
+}) => {
+  const config = defaultConfig();
+  config.lights.push(
+    { id: "keyboard", name: "Clavier", icon: "keyboard", source: "logitech" },
+    { id: "pc", name: "PC", icon: "pc", source: "aura" },
+  );
+  await desktopFixture(page, true, [], config);
+  await page.setViewportSize({ width: 320, height: 500 });
+  await ready(page);
+  await expect(page.locator(".lamp")).toHaveCount(6);
+  await expect(page.locator("#power-3")).toHaveAttribute("role", "switch");
+  await expect(page.locator("#light-3 .room-icon")).toHaveAccessibleName(
+    "Clavier",
+  );
+  await page.locator("#color-open-3").click();
+  await expect(page.locator(".white-controls")).toBeHidden();
+  await expect(page.locator(".color-controls")).toBeVisible();
+  await page.locator('[data-swatch="#41b7ed"]').click();
+  await expect
+    .poll(async () => (await commands(page, "color")).at(-1)?.params.index)
+    .toBe(3);
+  await page.locator("#editor-close").click();
+  await page.locator("#power-4").click();
+  await expect
+    .poll(async () => (await commands(page, "power")).at(-1)?.params.index)
+    .toBe(4);
+  await expect(page.locator("#pair-dialog")).toBeHidden();
+  await page.screenshot({
+    path: ".preview/local-rgb.png",
+    animations: "disabled",
+    omitBackground: true,
+  });
+});
 
 test("four horizontal Apple-style bars on deep black, with no permanent status text", async ({
   page,

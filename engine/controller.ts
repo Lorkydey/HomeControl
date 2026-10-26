@@ -22,6 +22,7 @@ import { hsvToHex, hsvToXy, xyToHsv } from "../shared/colors.js";
 import { LatestQueue } from "../shared/latest-queue.js";
 import type { Light } from "../shared/light.js";
 import { loadSettings, writeJson } from "./config.js";
+import { LocalRgb, type RgbSource } from "./rgb.js";
 
 Logger.level = "error";
 Logger.log = (_level, message) => process.stderr.write(`${message}\n`);
@@ -33,6 +34,12 @@ Environment.default.vars.set("storage.path", join(dataDir, "matter"));
 Environment.default.vars.set("log.level", "error");
 const settings = await loadSettings(dataDir);
 const slots = settings.slots;
+const rgb = new LocalRgb();
+const rgbSource = (index: number): RgbSource | undefined => {
+  const source = settings.config.lights[index].source;
+  return source === "logitech" || source === "aura" ? source : undefined;
+};
+const hasRgb = settings.config.lights.some((_, index) => rgbSource(index));
 
 // Keep automatic, sustained subscriptions, with only lighting and the metadata needed for seeding/Leave handling.
 const subscription = () =>
@@ -83,6 +90,7 @@ function save() {
   return job;
 }
 function nodeFor(index: number) {
+  if (rgbSource(index)) return undefined;
   return slots[index].peerId
     ? controller.peers.get(slots[index].peerId!)
     : undefined;
@@ -110,6 +118,8 @@ function available(node: ClientNode) {
 }
 function snapshot(): Light[] {
   return slots.map((slot, index) => {
+    const source = rgbSource(index);
+    if (source) return rgb.snapshot(source, index, slot.name);
     const node = nodeFor(index),
       endpoint = node && lightEndpoint(node);
     let on: boolean | null = null,
@@ -440,8 +450,9 @@ async function execute(
 }
 async function dispatch(method: string, params: Record<string, unknown>) {
   if (method === "status") return snapshot();
-  await ready;
+  if (method === "detect-rgb") return rgb.discover();
   if (method === "discover") {
+    await ready;
     const nodes = await controller.peers.discover({
       timeout: Seconds(6),
       discoveryCapabilities: { onIpNetwork: true, ble: false },
@@ -456,6 +467,9 @@ async function dispatch(method: string, params: Record<string, unknown>) {
     return snapshot();
   }
   if (method === "pair") {
+    if (rgbSource(index))
+      throw new Error("Les LED du PC ne nécessitent pas de jumelage Matter.");
+    await ready;
     if (slots[index].peerId)
       throw new Error("Cette lumière est déjà appairée.");
     if (pairing)
@@ -487,6 +501,18 @@ async function dispatch(method: string, params: Record<string, unknown>) {
       pairing = false;
     }
   }
+  const source = rgbSource(index);
+  if (source) {
+    return controls.run(index, method, async () => {
+      try {
+        await rgb.execute(source, method, index, slots[index].name, params);
+        return snapshot();
+      } finally {
+        scheduleBroadcast();
+      }
+    });
+  }
+  await ready;
   return controls.run(index, method, () => execute(method, index, params));
 }
 const input = createInterface({ input: process.stdin });
@@ -510,8 +536,23 @@ input.on("line", (line) => {
       }),
   );
 });
+let rgbRefreshing = false;
+async function refreshRgb() {
+  if (!hasRgb || rgbRefreshing || closing) return;
+  rgbRefreshing = true;
+  try {
+    await rgb.discover();
+  } catch (error) {
+    console.error("Détection RGB", error);
+  } finally {
+    rgbRefreshing = false;
+    scheduleBroadcast();
+  }
+}
+void refreshRgb();
 const heartbeat = setInterval(() => {
   if (started) broadcast(true);
+  void refreshRgb();
 }, 30000);
 input.on("close", async () => {
   closing = true;
@@ -519,6 +560,6 @@ input.on("close", async () => {
   clearTimeout(broadcastTimer);
   for (const timer of colorRefresh.values()) clearTimeout(timer);
   await saveQueue;
-  await controller.close();
+  await Promise.allSettled([rgb.close(), controller.close()]);
   process.exit(0);
 });
