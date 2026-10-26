@@ -19,6 +19,7 @@ Le PC et les ampoules doivent être joignables sur le même réseau local, avec 
 - Cliquer sur la pastille pour régler blancs, RGB/HEX, teinte, saturation et palettes selon les capacités de l’ampoule. Retour ou Échap ramène aux lampes.
 - La première barre, plus large et sans texte, commande toutes les lampes accessibles. Si certaines sont éteintes, elle les rallume ; si toutes sont allumées, elle les éteint toutes. Régler une pièce seule ne change pas les autres ni la consigne de luminosité globale.
 - Cliquer ailleurs masque le panneau. L’icône le rouvre sans relancer les connexions. Son menu permet de renommer, d’ouvrir la configuration et de quitter.
+- Double-cliquer sur l’icône de la pièce ou de l’appareil à gauche le verrouille : un cadenas apparaît et les commandes globales l’ignorent. Ses commandes individuelles restent disponibles. Répéter pour déverrouiller, ou utiliser Entrée/Espace sur l’icône au clavier. Le verrouillage est mémorisé même après renommage ou réorganisation.
 
 Les animations respectent la réduction des mouvements Windows. Les premières connexions peuvent prendre quelques secondes. Les scènes animées ou musicales propres aux fabricants ne sont pas proposées ici.
 
